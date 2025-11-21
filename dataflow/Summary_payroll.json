@@ -1,0 +1,134 @@
+{
+	"name": "Summary_payroll",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "nycpayroll_2020",
+						"type": "DatasetReference"
+					},
+					"name": "sourcenycpayroll2020"
+				},
+				{
+					"dataset": {
+						"referenceName": "nycpayroll_2021",
+						"type": "DatasetReference"
+					},
+					"name": "sourcenycpayroll2021"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "SqlSummary",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				},
+				{
+					"dataset": {
+						"referenceName": "adls_staging",
+						"type": "DatasetReference"
+					},
+					"name": "sinkDataLake"
+				}
+			],
+			"transformations": [
+				{
+					"name": "union1"
+				},
+				{
+					"name": "dataflowparamfiscalyear"
+				},
+				{
+					"name": "derivedTotalPaid"
+				},
+				{
+					"name": "aggregatePayrollSummary"
+				}
+			],
+			"scriptLines": [
+				"parameters{",
+				"     df_param_fiscalyear as integer (2020)",
+				"}",
+				"source(output(",
+				"          FiscalYear as string,",
+				"          PayrollNumber as string,",
+				"          AgencyID as string,",
+				"          AgencyName as string,",
+				"          EmployeeID as string,",
+				"          LastName as string,",
+				"          FirstName as string,",
+				"          AgencyStartDate as string,",
+				"          WorkLocationBorough as string,",
+				"          TitleCode as string,",
+				"          TitleDescription as string,",
+				"          LeaveStatusasofJune30 as string,",
+				"          BaseSalary as string,",
+				"          PayBasis as string,",
+				"          RegularHours as string,",
+				"          RegularGrossPaid as string,",
+				"          OTHours as string,",
+				"          TotalOTPaid as string,",
+				"          TotalOtherPay as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false) ~> sourcenycpayroll2020",
+				"source(output(",
+				"          FiscalYear as string,",
+				"          PayrollNumber as string,",
+				"          AgencyCode as string,",
+				"          AgencyName as string,",
+				"          EmployeeID as string,",
+				"          LastName as string,",
+				"          FirstName as string,",
+				"          AgencyStartDate as string,",
+				"          WorkLocationBorough as string,",
+				"          TitleCode as string,",
+				"          TitleDescription as string,",
+				"          LeaveStatusasofJune30 as string,",
+				"          BaseSalary as string,",
+				"          PayBasis as string,",
+				"          RegularHours as string,",
+				"          RegularGrossPaid as string,",
+				"          OTHours as string,",
+				"          TotalOTPaid as string,",
+				"          TotalOtherPay as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false) ~> sourcenycpayroll2021",
+				"sourcenycpayroll2020, sourcenycpayroll2021 union(byName: true)~> union1",
+				"union1 filter(toInteger(FiscalYear) >= $df_param_fiscalyear) ~> dataflowparamfiscalyear",
+				"dataflowparamfiscalyear derive(TotalPaid = toFloat(RegularGrossPaid) + toFloat(TotalOTPaid) + toFloat(TotalOtherPay)) ~> derivedTotalPaid",
+				"derivedTotalPaid aggregate(groupBy(AgencyName,",
+				"          FiscalYear),",
+				"     TotalPaid = sum(TotalPaid)) ~> aggregatePayrollSummary",
+				"aggregatePayrollSummary sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     truncate:true,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     partitionBy('hash', 1)) ~> sink1",
+				"aggregatePayrollSummary sink(allowSchemaDrift: true,",
+				"     validateSchema: true,",
+				"     truncate: true,",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     partitionBy('hash', 1)) ~> sinkDataLake"
+			]
+		}
+	}
+}
